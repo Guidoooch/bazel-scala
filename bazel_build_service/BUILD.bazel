@@ -16,3 +16,9 @@ scala_binary(
     srcs = glob(["src/main/scala/server/*.scala"]),
     main_class = "server.Server"
 )
+
+scala_binary(
+    name = "bazel-build-service-middleware",
+    srcs = glob(["src/main/scala/middleware/*.scala"]),
+    main_class = "middleware.Middleware"
+)

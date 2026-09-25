@@ -78,3 +78,14 @@ scala_deps.scala()
 #     patches = ["//:protobuf.patch"],
 #     version = "33.4",
 # )
+
+# bazel_dep(name = "bazel-diff", version = "40.0.2")
+
+http_jar = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_jar")
+http_jar(
+    name = "bazel-diff",
+    urls = [
+        "https://github.com/Tinder/bazel-diff/releases/download/v40.0.2/bazel-diff_deploy.jar"
+    ],
+    integrity = "sha256-84B9FJUnUeF4JajwT7+cOHEUTvCNxfKmApFVtUkoaVk="
+)
