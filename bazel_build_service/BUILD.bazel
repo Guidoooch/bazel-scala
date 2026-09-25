@@ -1,0 +1,18 @@
+load(
+    "@rules_scala//scala:scala.bzl",
+    "scala_binary",
+    "scala_library",
+    "scala_test",
+)
+
+scala_binary(
+    name = "bazel-build-service-client",
+    srcs = glob(["src/main/scala/client/*.scala"]),
+    main_class = "client.Client"
+)
+
+scala_binary(
+    name = "bazel-build-service-server",
+    srcs = glob(["src/main/scala/server/*.scala"]),
+    main_class = "server.Server"
+)

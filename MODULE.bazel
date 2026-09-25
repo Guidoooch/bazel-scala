@@ -1,0 +1,80 @@
+# MODULE.bazel
+
+bazel_dep(name = "rules_java", version = "9.9.0")
+
+# You can add `repo_name = "io_bazel_rules_scala"` if you still need it.
+bazel_dep(name = "rules_scala", version = "7.3.0")
+
+# Selects the Scala version and other configuration parameters.
+#
+# 2.12 is the default version. Use other versions by passing them explicitly, as
+# illustrated below.
+#
+# See the documentation of `_settings_attrs` in `scala/extensions/config.bzl`
+# for other available parameters.
+#
+# You may define your own custom toolchain using Maven artifact dependencies
+# configured by your `WORKSPACE` file, imported using an external loader like
+# https://github.com/bazelbuild/rules_jvm_external. See docs/scala_toolchain.md.
+scala_config = use_extension(
+    "@rules_scala//scala/extensions:config.bzl",
+    "scala_config",
+)
+scala_config.settings(scala_version = "2.13.18")
+
+# See the `scala/extensions/deps.bzl` docstring for a high level description of
+# the tag classes exported by this module extension.
+scala_deps = use_extension(
+    "@rules_scala//scala/extensions:deps.bzl",
+    "scala_deps",
+)
+
+# Defines a default toolchain repo for the configured Scala version that loads
+# Maven deps like the Scala compiler and standard libs. Enable and configure
+# other builtin toolchains by instantiating their corresponding tag classes.
+# See the documentation in `scala/extensions/deps.bzl` for all builtin
+# toolchain configuration options.
+#
+# On production projects, you may consider defining a custom toolchain to use
+# your project's required dependencies instead. In that case, you can omit using
+# the module extension and this next line altogether. Or, you can still use the
+# module extension to instantiate other optional `rules_scala` toolchains
+# without it.
+scala_deps.scala()
+
+# The remaining items are optional, enabling the builtin prebuilt protocol
+# compiler toolchain via `--incompatible_enable_proto_toolchain_resolution`.
+# This shouldn't be necessary with protobuf v33.4 and later, but still remains
+# available if you need it.
+#
+# See the "Using a prebuilt protocol compiler" section below.
+# scala_protoc = use_extension(
+#     "@rules_scala//scala/extensions:protoc.bzl",
+#     "scala_protoc",
+#     dev_dependency = True,
+# )
+# use_repo(scala_protoc, "rules_scala_protoc_toolchains")
+
+# Register this toolchain before any others in the file. Still safe even when
+# `--incompatible_enable_proto_toolchain_resolution` is `False`.
+# register_toolchains(
+#     "@rules_scala_protoc_toolchains//...:all",
+#     dev_dependency = True,
+# )
+
+# Temporarily required for protocol compiler toolchainization for protobuf v29.0
+# to v33.2. Copy `protoc/0001-protobuf-19679-rm-protoc-dep.patch` from
+# `rules_scala` to `protobuf.patch` in the root package.
+#
+# See the "Using a prebuilt protocol compiler" section below.
+# bazel_dep(
+#     name = "protobuf",
+#     version = "33.4",
+#     repo_name = "com_google_protobuf",
+# )
+# single_version_override(
+#     module_name = "protobuf",
+#     patch_strip = 1,
+#     patches = ["//:protobuf.patch"],
+#     version = "33.4",
+# )
