@@ -99,6 +99,7 @@ def impl(ctx: TaskContext):
     gen_base = bazel_diff("generate-hashes (base)", [
         "generate-hashes",
         "-w", ctx.std.env.current_dir(),
+        "--includeTargetType",
         "--bazelCommandOptions", "--enable_workspace --show_progress --show_loading_progress", # <-- Added --enable_workspace
         starting_hashes_json,
     ])
@@ -134,7 +135,7 @@ def impl(ctx: TaskContext):
         "get-impacted-targets",
         "-w", ctx.std.env.current_dir(), # <-- Required by bazel-diff v40+
         "--excludeExternalTargets",      # <-- Filters synthetic //external: labels
-        "-tt", "Rule",                  # <-- Restricts output strictly to Bazel rules
+        "--targetType", "Rule",          # <-- Restricts output strictly to Bazel rules
         "-sh", starting_hashes_json,
         "-fh", final_hashes_json,
         "-o", impacted_targets_path,
