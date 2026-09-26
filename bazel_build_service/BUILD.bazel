@@ -13,7 +13,7 @@ scala_binary(
 
 scala_binary(
     name = "bazel-build-service-server",
-    srcs = glob(["src/main/scala/server/*.scala"]),
+    srcs = glob(["src/main/scala/server/**/*.scala"]),
     main_class = "server.Server"
 )
 
