@@ -33,45 +33,35 @@ def impl(ctx: TaskContext):
     err = ctx.std.io.stderr
 
     out.write("[0/6] Building %s executable...\n" % ctx.args.bazel_diff_cli)
-    build = ctx.bazel.build(
+
+    # 1. Trigger Bazel build
+    build_process = ctx.bazel.build(
         ctx.args.bazel_diff_cli,
-        build_events = True,
-        workspace_events = True,
         flags = ["--build_runfile_links"],
     )
+
+    # 2. Wait for build completion to retrieve output metadata
+    out.write("[0/6] Waiting for build to complete...\n")
+    build_result = build_process.wait()
+    out.write("[0/6] Build completed...\n")
+
     (bazel_diff_command, runfiles) = (None, None)
 
-    # 1. Try direct iteration if build is an iterable stream
-    # 2. Check build_event_stream (Aspect CLI v2+)
-    # 3. Fall back to build_events() / events
-    events = []
-    if hasattr(build, "build_event_stream"):
-        events = build.build_event_stream
-    elif hasattr(build, "events"):
-        events = build.events
-    elif hasattr(build, "build_events"):
-        events = build.build_events()
-    elif hasattr(build, "workspace_events"):
-        events = build.workspace_events()
-    else:
-        events = build  # Some AXL runtimes make `build` itself an iterable stream of events
+    # 3. Extract output binary path from build result outputs
+    if hasattr(build_result, "outputs"):
+        for output in build_result.outputs:
+            path = output.path if hasattr(output, "path") else str(output)
+            if not path.endswith(".jar"):
+                bazel_diff_command = path
+                runfiles = path + ".runfiles"
+                break
 
-    out.write("INFO: build object attributes = %s\n" % dir(build))
-    out.write("INFO: events attributes = %s\n" % dir(events))
-
-    for event in events:
-        out.write("\n--- [bazel-diff] Event %s ---\n" % event)
-
-        if event.kind == "named_set_of_files":
-            for file in event.payload.files:
-                if len(file.path_prefix) == 0 or file.file.endswith(".jar"):
-                    continue
-                runfiles = file.file.removeprefix("file://") + ".runfiles"
-                bazel_diff_command = file.file.removeprefix("file://")
-
+    # Fallback to deterministic bazel-bin path construct
     if not bazel_diff_command:
-        err.write("Error: Could not locate built bazel-diff executable in runfiles.\n")
-        return 1
+        workspace_dir = ctx.std.env.current_dir()
+        target_path = ctx.args.bazel_diff_cli.removeprefix("//").replace(":", "/")
+        bazel_diff_command = "%s/bazel-bin/%s" % (workspace_dir, target_path)
+        runfiles = "%s.runfiles" % bazel_diff_command
 
     out.write("  -> Located bazel-diff binary at: %s\n" % bazel_diff_command)
 
@@ -109,7 +99,7 @@ def impl(ctx: TaskContext):
     gen_base = bazel_diff("generate-hashes (base)", [
         "generate-hashes",
         "-w", ctx.std.env.current_dir(),
-        "--bazelCommandOptions", "--show_progress --show_loading_progress",
+        "--bazelCommandOptions", "--enable_workspace --show_progress --show_loading_progress", # <-- Added --enable_workspace
         starting_hashes_json,
     ])
     if not gen_base.success:
@@ -128,19 +118,21 @@ def impl(ctx: TaskContext):
     # 4. Final Hashes Generation
     out.write("[4/6] Generating hashes for Current Revision (%s)...\n" % current_revision)
     gen_final = bazel_diff("generate-hashes (head)", [
-        "generate-hashes",
-        "-w", ctx.std.env.current_dir(),
-        "--bazelCommandOptions", "--show_progress --show_loading_progress",
-        final_hashes_json,
+       "generate-hashes",
+       "-w", ctx.std.env.current_dir(),
+       "--bazelCommandOptions", "--enable_workspace --show_progress --show_loading_progress", # <-- Added --enable_workspace
+       final_hashes_json,
     ])
     if not gen_final.success:
-        err.write("Error generating head hashes (exit code: %s)\n" % gen_final.code)
-        return 1
+       err.write("Error generating head hashes (exit code: %s)\n" % gen_final.code)
+       return 1
 
     # 5. Calculate Diff
     out.write("[5/6] Diffing Hashes: %s -> %s...\n" % (starting_hashes_json, final_hashes_json))
     get_impacted = bazel_diff("get-impacted-targets", [
         "get-impacted-targets",
+        "-w", ctx.std.env.current_dir(),             # <-- Required by bazel-diff v40+
+        "--excludeExternalTargets",                  # <-- Filters synthetic //external: labels
         "-sh", starting_hashes_json,
         "-fh", final_hashes_json,
         "-o", impacted_targets_path,
