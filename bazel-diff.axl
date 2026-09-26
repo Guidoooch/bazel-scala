@@ -36,11 +36,30 @@ def impl(ctx: TaskContext):
     build = ctx.bazel.build(
         ctx.args.bazel_diff_cli,
         build_events = True,
+        workspace_events = True,
         flags = ["--build_runfile_links"],
     )
     (bazel_diff_command, runfiles) = (None, None)
 
-    for event in build.events:
+    # 1. Try direct iteration if build is an iterable stream
+    # 2. Check build_event_stream (Aspect CLI v2+)
+    # 3. Fall back to build_events() / events
+    events = []
+    if hasattr(build, "build_event_stream"):
+        events = build.build_event_stream
+    elif hasattr(build, "events"):
+        events = build.events
+    elif hasattr(build, "build_events"):
+        events = build.build_events()
+    elif hasattr(build, "workspace_events"):
+        events = build.workspace_events()
+    else:
+        events = build  # Some AXL runtimes make `build` itself an iterable stream of events
+
+    out.write("INFO: build object attributes = %s\n" % dir(build))
+    out.write("INFO: events attributes = %s\n" % dir(events))
+
+    for event in events:
         out.write("\n--- [bazel-diff] Event %s ---\n" % event)
 
         if event.kind == "named_set_of_files":
@@ -147,4 +166,3 @@ impacted = task(
         "bazel_diff_cli": args.string(default = "//tools:bazel-diff"),
     },
 )
-
